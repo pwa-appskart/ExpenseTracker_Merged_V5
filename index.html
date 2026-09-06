@@ -492,30 +492,51 @@ async function handleBillImage(event) {
 
 function parseBillText(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const amountPattern = /[0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?/;
-  const totalKeywords = /total|amount due|grand total|net amount|balance due|payable/i;
+  const numberPattern = /[0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?/;
+  // Broadened to catch more real-world receipt phrasings for the final amount —
+  // "Net Total" and "Grand Total" already match via the plain "total" fragment,
+  // but plenty of bills say "Amount Paid", "Cash", "Bill Amount" etc. instead.
+  const totalKeywords = /net\s*total|grand\s*total|total|amount\s*due|amount\s*paid|you\s*paid|net\s*amount|net\s*payable|balance\s*due|payable|bill\s*amount|^cash\b/i;
   let totalAmount = null;
 
   for (const line of lines) {
     if (totalKeywords.test(line)) {
-      const m = line.match(amountPattern);
+      const m = line.match(numberPattern);
       if (m) { totalAmount = parseFloat(m[0].replace(/,/g, '')); break; }
     }
   }
+
   if (totalAmount === null) {
-    // No line matched a "total"-style keyword — fall back to the largest number
-    // on the bill, since the grand total is usually the biggest figure present.
-    const allNums = [...text.matchAll(/[0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?/g)]
-      .map(m => parseFloat(m[0].replace(/,/g, '')));
-    if (allNums.length) totalAmount = Math.max(...allNums);
+    // No line matched a "total"-style keyword. Rather than just grabbing the
+    // largest raw number on the bill (which is very often a 6-digit PIN code
+    // or 10-digit phone number — both bigger than most bill totals), score
+    // candidates: numbers with a currency symbol or a decimal point (e.g.
+    // "₹80" or "80.00") are strong signals of an actual amount; bare integers
+    // that are exactly PIN-code or phone-number length are explicitly excluded
+    // unless nothing else is available at all.
+    const candidates = [...text.matchAll(/(₹|rs\.?|inr)?\s*([0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)/gi)]
+      .map(m => {
+        const digits = m[2].replace(/[.,]/g, '');
+        return {
+          value: parseFloat(m[2].replace(/,/g, '')),
+          hasSymbol: !!m[1],
+          hasDecimal: m[2].includes('.'),
+          looksLikePinOrPhone: !m[1] && !m[2].includes('.') && (digits.length === 6 || digits.length === 10)
+        };
+      })
+      .filter(c => !isNaN(c.value));
+
+    const currencyLike = candidates.filter(c => (c.hasSymbol || c.hasDecimal) && !c.looksLikePinOrPhone);
+    const safe = candidates.filter(c => !c.looksLikePinOrPhone);
+    const pool = currencyLike.length ? currencyLike : (safe.length ? safe : candidates);
+    if (pool.length) totalAmount = Math.max(...pool.map(c => c.value));
   }
 
   // Description guess: the header of a receipt usually carries the store/vendor
   // name and any useful context. Take the first few lines that are actually text
-  // (skip lines that are purely numbers/currency, which are almost never useful
-  // as a description), rather than blindly grabbing line 1 which can be blank,
-  // a stray OCR artifact, or a barcode number depending on the receipt layout.
-  const textyLines = lines.filter(l => !/^[0-9.,:\-\/\s₹$]+$/.test(l));
+  // (skip lines that are purely numbers/currency) and long enough to be
+  // meaningful (skips 2-3 letter OCR artifacts like a misread logo fragment).
+  const textyLines = lines.filter(l => !/^[0-9.,:\-\/\s₹$]+$/.test(l) && l.length >= 4);
   const descriptionGuess = textyLines.slice(0, 3).join(' · ').slice(0, 120);
 
   return { totalAmount, descriptionGuess, rawText: text };
