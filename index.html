@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Expenses">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f97316">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<title>Household Expense Tracker</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { overscroll-behavior: none; -webkit-overflow-scrolling: touch; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: #f4f5f7; margin: 0;
+    padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+    color: #222;
+  }
+  .container { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 21px; font-weight: 600; margin-bottom: 4px; }
+  .subtitle { color: #666; margin-bottom: 18px; font-size: 13px; }
+
+  .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    background: #fff; padding: 12px 16px; border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 10px; }
+  .controls label { font-size: 12px; color: #555; margin-right: 3px; }
+  .controls select, .controls input[type=number], .controls input[type=text] {
+    padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; }
+  .controls button { padding: 7px 11px; border: none; border-radius: 6px; background: #f97316;
+    color: #fff; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+  .controls button:hover { background: #c2410c; }
+  .controls button.secondary { background: #64748b; }
+  .controls button.secondary:hover { background: #475569; }
+  .controls button.green { background: #16a34a; }
+  .view-toggle { display: flex; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; }
+  .view-toggle button { background: #fff; color: #444; border-radius: 0; padding: 6px 12px; }
+  .view-toggle button.active { background: #f97316; color: #fff; }
+
+  .status-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #888; margin: -2px 0 10px 4px; }
+
+  .reminder-banner { background: #fef3c7; border: 1px solid #fbbf24; color: #78350f;
+    padding: 10px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .reminder-banner button { background: transparent; border: none; color: #78350f; font-size: 16px; cursor: pointer; }
+  .reminder-banner.hidden { display: none; }
+
+  .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 20px; }
+  .day-header { text-align: center; font-size: 11px; font-weight: 600; color: #888; padding-bottom: 2px; }
+  .day-cell { background: #fff; border-radius: 8px; min-height: 62px; padding: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06); cursor: pointer; border: 1px solid transparent; }
+  .day-cell:hover { border-color: #f97316; }
+  .day-cell.empty { background: transparent; box-shadow: none; cursor: default; }
+  .day-cell.empty:hover { border-color: transparent; }
+  .day-cell.today { border-color: #f97316; }
+  .day-num { font-size: 12px; font-weight: 600; color: #444; }
+  .day-amount { font-size: 13px; font-weight: 600; color: #f97316; margin-top: 4px; }
+  .day-count { font-size: 10px; color: #999; }
+
+  .day-strip { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 2px; }
+  .day-chip { flex: 1 1 0; min-width: 40px; text-align: center; padding: 8px 4px; border-radius: 8px;
+    background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.06); cursor: pointer; border: 2px solid transparent; }
+  .day-chip .dname { font-size: 10px; color: #888; }
+  .day-chip .dnum { font-size: 14px; font-weight: 600; color: #333; }
+  .day-chip .damt { font-size: 10px; color: #f97316; font-weight: 600; }
+  .day-chip.active { border-color: #f97316; background: #fff7ed; }
+  .day-week-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .day-week-nav button { padding: 5px 10px; border: 1px solid #ccc; background: #fff; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .day-week-nav .week-label { font-size: 13px; font-weight: 600; color: #333; }
+
+  .day-total-bar { display: flex; justify-content: space-between; align-items: center;
+    background: #fff; border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .day-total-bar .dt-label { font-size: 13px; color: #666; }
+  .day-total-bar .dt-value { font-size: 20px; font-weight: 700; color: #f97316; }
+
+  .entry-list { margin-bottom: 12px; }
+  .entry-row { display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+  .entry-cat { font-size: 10px; padding: 2px 7px; border-radius: 10px; background: #ffedd5; color: #9a3412; white-space: nowrap; }
+  .entry-main { flex: 1; min-width: 0; }
+  .entry-name { font-size: 13.5px; font-weight: 600; color: #222; }
+  .entry-detail { font-size: 11.5px; color: #888; }
+  .entry-amt { font-size: 14px; font-weight: 700; color: #16a34a; white-space: nowrap; }
+  .entry-actions button { border: none; background: transparent; cursor: pointer; font-size: 14px; padding: 2px 5px; color: #999; }
+  .empty-state { text-align: center; color: #999; font-size: 13px; padding: 24px 0; }
+
+  .add-entry-btn { width: 100%; padding: 12px; border: 2px dashed #cbd5e1; background: #fff; border-radius: 10px;
+    color: #f97316; font-weight: 600; font-size: 14px; cursor: pointer; margin-bottom: 20px; }
+  .add-entry-btn:hover { border-color: #f97316; background: #fff7ed; }
+
+  .summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 14px; }
+  .summary-card { background: #fff; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .summary-label { font-size: 11.5px; color: #888; margin-bottom: 5px; }
+  .summary-value { font-size: 20px; font-weight: 700; color: #111; }
+  .summary-value.price { color: #f97316; }
+
+  .breakdown-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .breakdown-table th, .breakdown-table td { padding: 9px 13px; text-align: left; font-size: 12.5px; border-bottom: 1px solid #eee; }
+  .breakdown-table th { background: #f8f9fb; color: #555; font-size: 11px; }
+  .breakdown-table td.num { text-align: right; font-weight: 600; }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 18px; }
+  .modal-overlay.hidden { display: none; }
+  .modal { background: #fff; border-radius: 12px; padding: 22px; max-width: 440px; width: 100%; max-height: 86vh; overflow-y: auto; }
+  .modal h2 { font-size: 16px; margin: 0 0 6px; }
+  .modal p { font-size: 12.5px; color: #666; margin: 0 0 12px; line-height: 1.5; }
+  .modal input, .modal select { width: 100%; padding: 9px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 13.5px; margin-bottom: 9px; }
+  .modal label.chk { display: flex; align-items: center; gap: 7px; font-size: 13px; color: #444; margin-bottom: 9px; }
+  .modal label.chk input { width: auto; margin: 0; }
+  .modal button.primary { width: 100%; padding: 10px; border: none; border-radius: 6px; background: #f97316; color: #fff; font-size: 13.5px; cursor: pointer; margin-top: 2px; }
+  .modal button.primary.gray { background: #64748b; }
+  .modal .section-label { font-size: 11.5px; font-weight: 700; color: #888; text-transform: uppercase; margin: 14px 0 6px; }
+
+  .pill-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .pill { background: #f1f5f9; border-radius: 14px; padding: 5px 10px; font-size: 12px; display: flex; align-items: center; gap: 6px; color: #333; }
+  .pill button { border: none; background: transparent; color: #999; cursor: pointer; font-size: 12px; padding: 0; }
+
+  .item-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; padding: 8px; background: #f8f9fb; border-radius: 8px; flex-wrap: wrap; }
+  .item-row .iname { font-weight: 600; font-size: 12.5px; flex: 1 1 90px; }
+  .item-row .icat { font-size: 10.5px; color: #7c3aed; background: #ede9fe; padding: 1px 7px; border-radius: 8px; }
+  .item-row .iprice { font-size: 12px; color: #f97316; font-weight: 600; }
+  .item-row button { padding: 4px 7px; font-size: 10.5px; border: none; border-radius: 5px; cursor: pointer; }
+  .item-row button.editp { background: #ffedd5; color: #c2410c; }
+  .item-row button.delp { background: #fee2e2; color: #dc2626; }
+
+
+  .app-footer { text-align: center; font-size: 11px; color: #999; margin: 28px 0 8px; padding-top: 14px; border-top: 1px solid #e5e7eb; line-height: 1.6; }
+  .guide-body h3 { font-size: 13px; margin: 14px 0 4px; color: #333; }
+  .guide-body p, .guide-body li { font-size: 12.5px; color: #555; line-height: 1.55; }
+  .guide-body ul { margin: 4px 0; padding-left: 18px; }
+  .recur-badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; background: #fef3c7; color: #92400e; white-space: nowrap; font-weight: 600; }
+
+  @media (max-width: 480px) {
+    .day-chip .dname, .day-chip .damt { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Household Expense Tracker</h1>
+  <div class="subtitle">Log deliveries and expenses by category. Totals update automatically. Works fully offline.</div>
+
+  <div class="controls">
+    <div><label for="monthSelect">Month</label><select id="monthSelect"></select></div>
+    <div><label for="yearInput">Year</label><input type="number" id="yearInput" style="width:80px;"></div>
+    <div class="view-toggle">
+      <button id="monthViewBtn" class="active" onclick="setView('month')">Month</button>
+      <button id="dayViewBtn" onclick="setView('day')">Day</button>
+    </div>
+    <button class="secondary" onclick="openItemsModal()">🏷️ Items</button>
+    <button class="secondary" onclick="exportCSV()">Export CSV</button>
+    <button class="secondary" onclick="shareWhatsApp()">Share</button>
+    <button class="secondary" onclick="exportData()">Export JSON</button>
+    <button class="secondary" onclick="document.getElementById('importFile').click()">Import JSON</button>
+    <button class="secondary" onclick="clearMonth()">Clear month</button>
+    <button class="secondary" onclick="openGuide()">❓ Guide</button>
+    <button class="green" onclick="openFeedback()">💬 Feedback</button>
+    <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(event)">
+  </div>
+  <div class="status-bar">💾 <span id="statusText">Saved on this device</span></div>
+
+  <div class="reminder-banner hidden" id="reminderBanner">
+    <span id="reminderText"></span>
+    <button onclick="dismissReminder()">✕</button>
+  </div>
+
+  <div id="calendar" class="calendar"></div>
+
+  <div id="dayView" style="display:none;">
+    <div class="day-week-nav">
+      <button onclick="prevWeekStrip()">◀</button>
+      <span class="week-label" id="weekStripLabel"></span>
+      <button onclick="nextWeekStrip()">▶</button>
+    </div>
+    <div class="day-strip" id="dayStrip"></div>
+    <div class="day-total-bar">
+      <span class="dt-label" id="selectedDayLabel">Today</span>
+      <span class="dt-value" id="selectedDayTotal">₹0.00</span>
+    </div>
+    <div class="entry-list" id="entryList"></div>
+    <button class="add-entry-btn" onclick="openAddEntry()">+ Add entry</button>
+  </div>
+
+  <div class="summary">
+    <div class="summary-card"><div class="summary-label">Total entries this month</div><div class="summary-value" id="totalEntries">0</div></div>
+    <div class="summary-card"><div class="summary-label">Total amount</div><div class="summary-value price" id="totalAmount">₹0.00</div></div>
+  </div>
+
+  <table class="breakdown-table" id="breakdownTable">
+    <thead><tr><th>Category</th><th style="text-align:right">Amount</th></tr></thead>
+    <tbody id="breakdownBody"></tbody>
+  </table>
+  <div class="app-footer">© 2026 GroTracker. All rights reserved.<br>Household Expense &amp; Delivery Tracker.</div>
+</div>
+
+<div class="modal-overlay hidden" id="itemsModal">
+  <div class="modal">
+    <h2>Categories & items</h2>
+    <p>Group items under categories, and mark whether each item has a per-unit price (quantity × price) or is a flat expense (just an amount).</p>
+
+    <div class="section-label">Categories</div>
+    <div class="pill-list" id="categoryPills"></div>
+    <div style="display:flex;gap:6px;">
+      <input type="text" id="newCategoryName" placeholder="New category" style="margin-bottom:0;">
+      <button class="primary" style="width:auto;padding:8px 14px;" onclick="addCategory()">Add</button>
+    </div>
+
+    <div class="section-label">Items</div>
+    <div id="itemsList"></div>
+    <input type="text" id="newItemName" placeholder="Item name (e.g. Milk, Electricity Bill)">
+    <select id="newItemCategory"></select>
+    <input type="text" id="newItemVendor" placeholder="Vendor (optional)">
+    <label class="chk"><input type="checkbox" id="newItemHasPrice" checked onchange="toggleNewItemPrice()"> Has a per-unit price</label>
+    <input type="number" id="newItemPrice" placeholder="Unit price ₹">
+    <button class="primary" onclick="addItem()">Add item</button>
+
+    <div class="section-label">Recurring monthly entries</div>
+    <div id="recurringList"></div>
+
+    <button class="primary gray" style="margin-top:14px;" onclick="closeItemsModal()">Close</button>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="addEntryModal">
+  <div class="modal">
+    <h2 id="addEntryModalTitle">Add entry</h2>
+    <p id="addEntryDayLabel"></p>
+    <select id="entryCategory" onchange="onEntryCategoryChange()"></select>
+    <select id="entryItem" onchange="onEntryItemChange()"></select>
+    <div id="entryQtyWrap">
+      <input type="number" id="entryQty" placeholder="Quantity" min="0" oninput="updateEntryPreview()">
+      <div id="entryPreview" style="font-size:12px;color:#888;margin:-6px 0 9px;"></div>
+    </div>
+    <div id="entryAmountWrap" style="display:none;">
+      <input type="number" id="entryAmount" placeholder="Amount ₹" min="0">
+    </div>
+    <input type="text" id="entryNote" placeholder="Note (optional)">
+    <label class="chk"><input type="checkbox" id="entryRecurring"> 🔁 Repeat this every month</label>
+    <button class="primary" onclick="saveEntry()">Save entry</button>
+    <button class="primary gray" style="margin-top:8px;" onclick="closeAddEntry()">Cancel</button>
+  </div>
+</div>
+
+
+<div class="modal-overlay hidden" id="guideModal">
+  <div class="modal guide-body">
+    <h2>How to use this tracker</h2>
+    <h3>1. Set up your items</h3>
+    <p>Tap <b>🏷️ Items</b>. Add a category (e.g. Groceries), then add items under it. Each item is either priced (quantity × unit price, like Milk) or a flat amount (like an Electricity Bill).</p>
+    <h3>2. Log an entry</h3>
+    <p>Switch to <b>Day</b> view, pick a date from the strip, and tap <b>+ Add entry</b>. Choose category → item → enter quantity or amount.</p>
+    <h3>3. Repeating expenses</h3>
+    <p>Check <b>🔁 Repeat this every month</b> when adding an entry — it will auto-appear on the same date every month afterward, so you never have to re-add it. Manage or remove repeating entries from the Items screen.</p>
+    <h3>4. Review your month</h3>
+    <p>Switch to <b>Month</b> view for a calendar overview — each day shows its total and entry count. The bottom of the page shows your total spend and a category breakdown.</p>
+    <h3>5. Export &amp; share</h3>
+    <ul>
+      <li><b>Export CSV</b> — opens cleanly in Excel/Sheets</li>
+      <li><b>Share</b> — sends a quick summary via WhatsApp or your phone's share sheet</li>
+      <li><b>Export/Import JSON</b> — full backup, or move data between devices</li>
+    </ul>
+    <h3>About this version</h3><p>This is the offline version — everything stays on this device only. Use <b>Export JSON</b> and <b>Import JSON</b> to move data to another device.</p>
+    <button class="primary gray" style="margin-top:14px;" onclick="closeGuide()">Close</button>
+  </div>
+</div>
+
+<script>
+const monthSelect = document.getElementById('monthSelect');
+const yearInput = document.getElementById('yearInput');
+const calendarEl = document.getElementById('calendar');
+const dayViewEl = document.getElementById('dayView');
+const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+monthNames.forEach((m, i) => {
+  const opt = document.createElement('option');
+  opt.value = i; opt.textContent = m;
+  monthSelect.appendChild(opt);
+});
+
+const today = new Date();
+monthSelect.value = today.getMonth();
+yearInput.value = today.getFullYear();
+
+let categories = [];        // string[]
+let items = [];             // [{id,name,category,vendor,hasUnitPrice,priceHistory}]
+let monthEntries = {};      // { day: [ {id,itemId,qty,amount,note} ] }
+let currentView = 'month';
+let selectedDay = today.getDate();
+let stripWeekIndex = Math.floor((selectedDay - 1) / 7);
+let reminderDismissed = false;
+let editingEntryIndex = null;  // null = adding new entry; otherwise index into monthEntries[selectedDay] being edited
+let recurringTemplates = [];   // [{id,itemId,day,qty,amount,note}]
+let appliedRecurring = [];    // recurringTemplate ids already materialized for the CURRENT loaded month
+
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(m => m.classList.add('hidden'));
+  }
+});
+function openGuide() { document.getElementById('guideModal').classList.remove('hidden'); }
+function closeGuide() { document.getElementById('guideModal').classList.add('hidden'); }
+
+const FEEDBACK_FORM_URL = "https://forms.gle/YOUR_FORM_ID";
+function openFeedback() { window.open(FEEDBACK_FORM_URL, '_blank'); }
+
+/* ---------- Local storage (sole persistence — everything stays on this device) ---------- */
+function loadLocalConfig() {
+  try { categories = JSON.parse(localStorage.getItem('categories')) || []; } catch (e) { categories = []; }
+  try { items = JSON.parse(localStorage.getItem('items')) || []; } catch (e) { items = []; }
+  try { recurringTemplates = JSON.parse(localStorage.getItem('recurringTemplates')) || []; } catch (e) { recurringTemplates = []; }
+}
+function saveConfig() {
+  try { localStorage.setItem('categories', JSON.stringify(categories)); localStorage.setItem('items', JSON.stringify(items)); localStorage.setItem('recurringTemplates', JSON.stringify(recurringTemplates)); } catch (e) {
+    console.error('Save failed', e);
+  }
+}
+function monthKey(year, month) { return `monthentries-${year}-${month}`; }
+function loadLocalMonth(year, month) {
+  try { monthEntries = JSON.parse(localStorage.getItem(monthKey(year, month))) || {}; } catch (e) { monthEntries = {}; }
+  try { appliedRecurring = JSON.parse(localStorage.getItem(monthKey(year, month) + '-recurring')) || []; } catch (e) { appliedRecurring = []; }
+}
+function saveMonthData() {
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  try { localStorage.setItem(monthKey(year, month), JSON.stringify(monthEntries)); localStorage.setItem(monthKey(year, month) + '-recurring', JSON.stringify(appliedRecurring)); } catch (e) {
+    console.error('Save failed', e);
+  }
+  checkReminder();
+}
+
+/* ---------- Categories & items management ---------- */
+function uid(prefix) { return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+function effectivePrice(item, dateStr) {
+  if (!item.priceHistory || item.priceHistory.length === 0) return 0;
+  const sorted = [...item.priceHistory].sort((a,b) => a.from.localeCompare(b.from));
+  let price = sorted[0].price;
+  for (const h of sorted) { if (h.from <= dateStr) price = h.price; else break; }
+  return price;
+}
+function entryAmount(entry, dateStr) {
+  const item = items.find(i => i.id === entry.itemId);
+  if (!item) return entry.amount || 0;
+  if (item.hasUnitPrice) return (entry.qty || 0) * effectivePrice(item, dateStr);
+  return entry.amount || 0;
+}
+
+function openItemsModal() { renderCategoryPills(); renderItemsList(); populateItemDropdowns(); renderRecurringList(); document.getElementById('itemsModal').classList.remove('hidden'); }
+function closeItemsModal() { document.getElementById('itemsModal').classList.add('hidden'); }
+
+function renderCategoryPills() {
+  const el = document.getElementById('categoryPills');
+  if (categories.length === 0) { el.innerHTML = '<span style="color:#999;font-size:12px;">No categories yet.</span>'; return; }
+  el.innerHTML = categories.map(c => `<span class="pill">${escapeHtml(c)} <button onclick="removeCategory('${escapeHtml(c)}')">✕</button></span>`).join('');
+}
+function addCategory() {
+  const input = document.getElementById('newCategoryName');
+  const val = input.value.trim();
+  if (!val) return;
+  if (categories.includes(val)) { alert('That category already exists.'); return; }
+  categories.push(val);
+  input.value = '';
+  saveConfig();
+  renderCategoryPills(); populateItemDropdowns();
+}
+function removeCategory(name) {
+  if (items.some(i => i.category === name)) { alert('Remove or reassign items in this category first.'); return; }
+  categories = categories.filter(c => c !== name);
+  saveConfig();
+  renderCategoryPills(); populateItemDropdowns();
+}
+
+function toggleNewItemPrice() {
+  document.getElementById('newItemPrice').style.display = document.getElementById('newItemHasPrice').checked ? 'block' : 'none';
+}
+function renderItemsList() {
+  const list = document.getElementById('itemsList');
+  if (items.length === 0) { list.innerHTML = '<p style="color:#999;font-size:12.5px;">No items yet — add one below.</p>'; return; }
+  const todayStr = new Date().toISOString().slice(0,10);
+  list.innerHTML = items.map(it => `
+    <div class="item-row">
+      <span class="iname">${escapeHtml(it.name)}</span>
+      <span class="icat">${escapeHtml(it.category || 'Uncategorized')}</span>
+      <span class="iprice">${it.hasUnitPrice ? '₹'+effectivePrice(it, todayStr).toFixed(2)+'/unit' : 'flat amount'}</span>
+      ${it.hasUnitPrice ? `<button class="editp" onclick="updateItemPrice('${it.id}')">Update price</button>` : ''}
+      <button class="delp" onclick="deleteItem('${it.id}')">Remove</button>
+    </div>
+  `).join('');
+}
+function populateItemDropdowns() {
+  const newItemCat = document.getElementById('newItemCategory');
+  newItemCat.innerHTML = categories.length ? categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('') : '<option value="">(add a category first)</option>';
+  const entryCat = document.getElementById('entryCategory');
+  const catsInUse = categories.filter(c => items.some(i => i.category === c));
+  entryCat.innerHTML = catsInUse.length ? catsInUse.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('') : '<option value="">(no items yet)</option>';
+}
+function addItem() {
+  const name = document.getElementById('newItemName').value.trim();
+  const category = document.getElementById('newItemCategory').value;
+  const vendor = document.getElementById('newItemVendor').value.trim();
+  const hasUnitPrice = document.getElementById('newItemHasPrice').checked;
+  const price = parseFloat(document.getElementById('newItemPrice').value) || 0;
+  if (!name) { alert('Enter an item name.'); return; }
+  if (!category) { alert('Add a category first.'); return; }
+  const todayStr = new Date().toISOString().slice(0,10);
+  items.push({ id: uid('item'), name, category, vendor, hasUnitPrice, priceHistory: hasUnitPrice ? [{ from: todayStr, price }] : [] });
+  document.getElementById('newItemName').value = '';
+  document.getElementById('newItemVendor').value = '';
+  document.getElementById('newItemPrice').value = '';
+  saveConfig();
+  renderItemsList(); populateItemDropdowns();
+  buildCurrentView();
+}
+function updateItemPrice(id) {
+  const it = items.find(x => x.id === id);
+  if (!it) return;
+  const newPrice = prompt(`New price for ${it.name} (₹):`);
+  if (newPrice === null || newPrice.trim() === '') return;
+  const val = parseFloat(newPrice);
+  if (isNaN(val)) { alert('Enter a valid number.'); return; }
+  const fromDate = prompt('Effective from date (YYYY-MM-DD):', new Date().toISOString().slice(0,10));
+  if (!fromDate) return;
+  it.priceHistory.push({ from: fromDate, price: val });
+  saveConfig();
+  renderItemsList();
+  buildCurrentView();
+}
+function deleteItem(id) {
+  const it = items.find(x => x.id === id);
+  if (!it) return;
+  if (!confirm(`Remove "${it.name}"? Past logged entries for it will remain but show as an unknown item.`)) return;
+  items = items.filter(x => x.id !== id);
+  recurringTemplates = recurringTemplates.filter(t => t.itemId !== id);
+  saveConfig();
+  renderItemsList(); populateItemDropdowns(); renderRecurringList();
+  buildCurrentView();
+}
+
+
+/* ---------- Recurring monthly entries ---------- */
+function upsertRecurringTemplate(existingTemplateId, itemId, day, qty, amount, note) {
+  let t = existingTemplateId ? recurringTemplates.find(x => x.id === existingTemplateId) : null;
+  if (!t) { t = { id: uid('rec') }; recurringTemplates.push(t); }
+  t.itemId = itemId; t.day = day; t.note = note;
+  if (qty !== undefined) { t.qty = qty; delete t.amount; }
+  else { t.amount = amount; delete t.qty; }
+  return t;
+}
+function applyRecurring(year, month) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  let changed = false;
+  recurringTemplates.forEach(t => {
+    if (appliedRecurring.includes(t.id)) return;
+    const day = Math.min(t.day, daysInMonth);
+    const entry = { id: uid('e'), itemId: t.itemId, note: t.note, recurringId: t.id };
+    if (t.qty !== undefined) entry.qty = t.qty;
+    if (t.amount !== undefined) entry.amount = t.amount;
+    if (!monthEntries[day]) monthEntries[day] = [];
+    monthEntries[day].push(entry);
+    appliedRecurring.push(t.id);
+    changed = true;
+  });
+  return changed;
+}
+function renderRecurringList() {
+  const el = document.getElementById('recurringList');
+  if (!el) return;
+  if (recurringTemplates.length === 0) { el.innerHTML = '<p style="color:#999;font-size:12.5px;">None yet — check "Repeat this every month" when adding an entry.</p>'; return; }
+  el.innerHTML = recurringTemplates.map(t => {
+    const item = items.find(i => i.id === t.itemId);
+    const name = item ? item.name : '(deleted item)';
+    const amtLabel = item && item.hasUnitPrice ? `${t.qty || 0} units` : `₹${(t.amount||0).toFixed(2)}`;
+    return `<div class="item-row"><span class="iname">${escapeHtml(name)}</span><span class="icat">Day ${t.day}</span><span class="iprice">${amtLabel}</span><button class="delp" onclick="removeRecurringTemplate('${t.id}')">Stop</button></div>`;
+  }).join('');
+}
+function removeRecurringTemplate(id) {
+  if (!confirm('Stop repeating this entry every month? Already-added entries stay as they are.')) return;
+  recurringTemplates = recurringTemplates.filter(t => t.id !== id);
+  saveConfig();
+  renderRecurringList();
+}
+
+/* ---------- View toggle ---------- */
+function setView(v) {
+  currentView = v;
+  document.getElementById('monthViewBtn').classList.toggle('active', v === 'month');
+  document.getElementById('dayViewBtn').classList.toggle('active', v === 'day');
+  calendarEl.style.display = v === 'month' ? 'grid' : 'none';
+  dayViewEl.style.display = v === 'day' ? 'block' : 'none';
+  buildCurrentView();
+}
+function buildCurrentView() {
+  if (currentView === 'month') renderMonthGrid(); else renderDayView();
+  updateSummary();
+}
+
+/* ---------- Month grid ---------- */
+function renderMonthGrid() {
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  calendarEl.innerHTML = '';
+  dayNames.forEach(d => {
+    const dh = document.createElement('div'); dh.className = 'day-header'; dh.textContent = d;
+    calendarEl.appendChild(dh);
+  });
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+  for (let i = 0; i < firstDay; i++) {
+    const e = document.createElement('div'); e.className = 'day-cell empty'; calendarEl.appendChild(e);
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayEntries = monthEntries[d] || [];
+    const amt = dayEntries.reduce((sum, e) => sum + entryAmount(e, dateStr), 0);
+    const cell = document.createElement('div');
+    cell.className = 'day-cell' + (isCurrentMonth && d === today.getDate() ? ' today' : '');
+    cell.onclick = () => { selectedDay = d; stripWeekIndex = Math.floor((d-1)/7); setView('day'); };
+    cell.innerHTML = `
+      <div class="day-num">${d}</div>
+      <div class="day-amount">${amt > 0 ? '₹'+amt.toFixed(0) : ''}</div>
+      <div class="day-count">${dayEntries.length ? dayEntries.length + ' entr' + (dayEntries.length===1?'y':'ies') : ''}</div>
+    `;
+    calendarEl.appendChild(cell);
+  }
+}
+
+/* ---------- Day view ---------- */
+function renderDayView() {
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startDay = stripWeekIndex * 7 + 1;
+  const endDay = Math.min(startDay + 6, daysInMonth);
+  if (startDay > daysInMonth) { stripWeekIndex = Math.max(0, Math.ceil(daysInMonth/7)-1); return renderDayView(); }
+  document.getElementById('weekStripLabel').textContent = `${monthNames[month]} ${startDay}–${endDay}`;
+
+  const strip = document.getElementById('dayStrip');
+  strip.innerHTML = '';
+  for (let d = startDay; d <= endDay; d++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayEntries = monthEntries[d] || [];
+    const amt = dayEntries.reduce((sum, e) => sum + entryAmount(e, dateStr), 0);
+    const weekday = dayNames[new Date(year, month, d).getDay()];
+    const chip = document.createElement('div');
+    chip.className = 'day-chip' + (d === selectedDay ? ' active' : '');
+    chip.onclick = () => { selectedDay = d; renderDayView(); };
+    chip.innerHTML = `<div class="dname">${weekday}</div><div class="dnum">${d}</div><div class="damt">${amt > 0 ? '₹'+amt.toFixed(0) : ''}</div>`;
+    strip.appendChild(chip);
+  }
+  if (selectedDay < startDay || selectedDay > endDay) selectedDay = startDay;
+
+  renderEntryList();
+}
+function renderEntryList() {
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
+  const weekday = dayNames[new Date(year, month, selectedDay).getDay()];
+  document.getElementById('selectedDayLabel').textContent = `${weekday}, ${monthNames[month]} ${selectedDay}`;
+
+  const dayEntries = monthEntries[selectedDay] || [];
+  const total = dayEntries.reduce((sum, e) => sum + entryAmount(e, dateStr), 0);
+  document.getElementById('selectedDayTotal').textContent = '₹' + total.toFixed(2);
+
+  const listEl = document.getElementById('entryList');
+  if (dayEntries.length === 0) {
+    listEl.innerHTML = '<div class="empty-state">No entries yet for this day.</div>';
+    return;
+  }
+  listEl.innerHTML = dayEntries.map((e, idx) => {
+    const item = items.find(i => i.id === e.itemId);
+    const name = item ? item.name : '(deleted item)';
+    const cat = item ? item.category : '';
+    const amt = entryAmount(e, dateStr);
+    const detail = item && item.hasUnitPrice ? `${e.qty} × ₹${effectivePrice(item, dateStr).toFixed(2)}` : 'flat amount';
+    return `
+      <div class="entry-row">
+        <span class="entry-cat">${escapeHtml(cat)}</span>
+        ${e.recurringId ? '<span class="recur-badge" title="Repeats monthly">🔁 Recurring</span>' : ''}
+        <div class="entry-main">
+          <div class="entry-name">${escapeHtml(name)}</div>
+          <div class="entry-detail">${detail}${e.note ? ' · ' + escapeHtml(e.note) : ''}</div>
+        </div>
+        <span class="entry-amt">₹${amt.toFixed(2)}</span>
+        <span class="entry-actions"><button onclick="openAddEntry(${idx})" title="Edit">✎</button><button onclick="deleteEntry(${idx})" title="Delete">🗑️</button></span>
+      </div>
+    `;
+  }).join('');
+}
+function deleteEntry(idx) {
+  if (!confirm('Remove this entry?')) return;
+  monthEntries[selectedDay].splice(idx, 1);
+  if (monthEntries[selectedDay].length === 0) delete monthEntries[selectedDay];
+  saveMonthData();
+  renderDayView();
+  updateSummary();
+}
+function prevWeekStrip() { if (stripWeekIndex > 0) { stripWeekIndex--; renderDayView(); } }
+function nextWeekStrip() {
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  if ((stripWeekIndex+1)*7 + 1 <= daysInMonth) { stripWeekIndex++; renderDayView(); }
+}
+
+/* ---------- Add entry modal ---------- */
+function openAddEntry(editIdx) {
+  if (items.length === 0) { alert('Add at least one item first (🏷️ Items button).'); openItemsModal(); return; }
+  editingEntryIndex = (editIdx === undefined) ? null : editIdx;
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  document.getElementById('addEntryDayLabel').textContent = `${monthNames[month]} ${selectedDay}, ${year}`;
+  document.getElementById('addEntryModalTitle').textContent = editingEntryIndex !== null ? 'Edit entry' : 'Add entry';
+  populateItemDropdowns();
+
+  if (editingEntryIndex !== null) {
+    const entry = monthEntries[selectedDay][editingEntryIndex];
+    const item = items.find(i => i.id === entry.itemId);
+    if (item) {
+      document.getElementById('entryCategory').value = item.category;
+      onEntryCategoryChange();
+      document.getElementById('entryItem').value = entry.itemId;
+      onEntryItemChange();
+    } else {
+      onEntryCategoryChange();
+    }
+    document.getElementById('entryQty').value = entry.qty || '';
+    document.getElementById('entryAmount').value = entry.amount || '';
+    document.getElementById('entryNote').value = entry.note || '';
+    document.getElementById('entryRecurring').checked = !!entry.recurringId;
+    updateEntryPreview();
+  } else {
+    onEntryCategoryChange();
+    document.getElementById('entryQty').value = '';
+    document.getElementById('entryAmount').value = '';
+    document.getElementById('entryNote').value = '';
+    document.getElementById('entryRecurring').checked = false;
+  }
+  document.getElementById('addEntryModal').classList.remove('hidden');
+}
+function closeAddEntry() { editingEntryIndex = null; document.getElementById('addEntryModal').classList.add('hidden'); }
+function onEntryCategoryChange() {
+  const cat = document.getElementById('entryCategory').value;
+  const itemSel = document.getElementById('entryItem');
+  const filtered = items.filter(i => i.category === cat);
+  itemSel.innerHTML = filtered.map(i => `<option value="${i.id}">${escapeHtml(i.name)}</option>`).join('') || '<option value="">(no items in this category)</option>';
+  onEntryItemChange();
+}
+function onEntryItemChange() {
+  const itemId = document.getElementById('entryItem').value;
+  const item = items.find(i => i.id === itemId);
+  const qtyWrap = document.getElementById('entryQtyWrap');
+  const amtWrap = document.getElementById('entryAmountWrap');
+  if (item && item.hasUnitPrice) { qtyWrap.style.display = 'block'; amtWrap.style.display = 'none'; }
+  else { qtyWrap.style.display = 'none'; amtWrap.style.display = 'block'; }
+  updateEntryPreview();
+}
+function updateEntryPreview() {
+  const itemId = document.getElementById('entryItem').value;
+  const item = items.find(i => i.id === itemId);
+  const preview = document.getElementById('entryPreview');
+  if (!item || !item.hasUnitPrice) { preview.textContent = ''; return; }
+  const qty = parseFloat(document.getElementById('entryQty').value) || 0;
+  const dateStr = new Date().toISOString().slice(0,10);
+  const price = effectivePrice(item, dateStr);
+  preview.textContent = qty > 0 ? `= ₹${(qty*price).toFixed(2)} (at ₹${price.toFixed(2)}/unit)` : `Current price: ₹${price.toFixed(2)}/unit`;
+}
+function saveEntry() {
+  const itemId = document.getElementById('entryItem').value;
+  const item = items.find(i => i.id === itemId);
+  if (!item) { alert('Pick an item.'); return; }
+  const note = document.getElementById('entryNote').value.trim();
+
+  const isEdit = editingEntryIndex !== null;
+  let entry = isEdit ? monthEntries[selectedDay][editingEntryIndex] : { id: uid('e') };
+  entry.itemId = itemId;
+  entry.note = note;
+
+  if (item.hasUnitPrice) {
+    const qty = parseFloat(document.getElementById('entryQty').value);
+    if (!qty || qty <= 0) { alert('Enter a quantity.'); return; }
+    entry.qty = qty;
+    delete entry.amount;
+  } else {
+    const amt = parseFloat(document.getElementById('entryAmount').value);
+    if (!amt || amt <= 0) { alert('Enter an amount.'); return; }
+    entry.amount = amt;
+    delete entry.qty;
+  }
+
+  const wasRecurringId = entry.recurringId;
+  const wantsRecurring = document.getElementById('entryRecurring').checked;
+  if (wantsRecurring) {
+    if (wasRecurringId) recurringTemplates = recurringTemplates.filter(t => t.id !== wasRecurringId);
+    const t = upsertRecurringTemplate(wasRecurringId, itemId, selectedDay, entry.qty, entry.amount, note);
+    entry.recurringId = t.id;
+    if (!appliedRecurring.includes(t.id)) appliedRecurring.push(t.id);
+    saveConfig();
+  } else if (wasRecurringId) {
+    recurringTemplates = recurringTemplates.filter(t => t.id !== wasRecurringId);
+    delete entry.recurringId;
+    saveConfig();
+  }
+
+  if (!isEdit) {
+    if (!monthEntries[selectedDay]) monthEntries[selectedDay] = [];
+    monthEntries[selectedDay].push(entry);
+  }
+  saveMonthData();
+  closeAddEntry();
+  renderDayView();
+  updateSummary();
+}
+
+/* ---------- Summary ---------- */
+function updateSummary() {
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  let totalEntries = 0, totalAmt = 0;
+  const byCategory = {};
+  Object.entries(monthEntries).forEach(([day, list]) => {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    list.forEach(e => {
+      const item = items.find(i => i.id === e.itemId);
+      const cat = item ? item.category : 'Unknown';
+      const amt = entryAmount(e, dateStr);
+      byCategory[cat] = (byCategory[cat] || 0) + amt;
+      totalAmt += amt;
+      totalEntries++;
+    });
+  });
+  document.getElementById('totalEntries').textContent = totalEntries.toLocaleString();
+  document.getElementById('totalAmount').textContent = '₹' + totalAmt.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+  const rows = Object.entries(byCategory).sort((a,b) => b[1]-a[1]);
+  document.getElementById('breakdownBody').innerHTML = rows.map(([cat, amt]) => `
+    <tr><td>${escapeHtml(cat)}</td><td class="num">₹${amt.toFixed(2)}</td></tr>
+  `).join('') || '<tr><td colspan="2" style="color:#999;">No entries yet</td></tr>';
+}
+
+/* ---------- Reminder ---------- */
+function checkReminder() {
+  if (reminderDismissed) return;
+  const now = new Date();
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  const banner = document.getElementById('reminderBanner');
+  if (year !== now.getFullYear() || month !== now.getMonth()) { banner.classList.add('hidden'); return; }
+  let lastLoggedDay = null;
+  Object.entries(monthEntries).forEach(([day, list]) => {
+    if (list.length > 0) { const dNum = parseInt(day); if (lastLoggedDay === null || dNum > lastLoggedDay) lastLoggedDay = dNum; }
+  });
+  if (lastLoggedDay === null) { banner.classList.add('hidden'); return; }
+  const gap = now.getDate() - lastLoggedDay;
+  if (gap >= 2) {
+    document.getElementById('reminderText').textContent = `⏰ No entry logged in ${gap} days — don't forget to add today's expenses.`;
+    banner.classList.remove('hidden');
+  } else banner.classList.add('hidden');
+}
+function dismissReminder() { reminderDismissed = true; document.getElementById('reminderBanner').classList.add('hidden'); }
+
+/* ---------- Month load ---------- */
+function loadMonth() {
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  loadLocalMonth(year, month);
+  if (applyRecurring(year, month)) { saveMonthData(); }
+  reminderDismissed = false;
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+  selectedDay = isCurrentMonth ? today.getDate() : 1;
+  stripWeekIndex = Math.floor((selectedDay - 1) / 7);
+  buildCurrentView();
+  checkReminder();
+}
+monthSelect.addEventListener('change', loadMonth);
+yearInput.addEventListener('change', loadMonth);
+
+function clearMonth() {
+  if (!confirm('Clear all entries for this month? Recurring items will be re-added automatically.')) return;
+  monthEntries = {};
+  appliedRecurring = [];  // full reset — without this, templates already marked "applied" for
+                          // this month would never regenerate, even though entries are gone.
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  applyRecurring(year, month);
+  saveMonthData();
+  buildCurrentView();
+}
+
+/* ---------- CSV export ---------- */
+function exportCSV() {
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  let rows = [['Date','Category','Item','Vendor','Quantity','Unit Price','Amount','Note']];
+  Object.entries(monthEntries).sort((a,b) => parseInt(a[0])-parseInt(b[0])).forEach(([day, list]) => {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    list.forEach(e => {
+      const item = items.find(i => i.id === e.itemId);
+      const amt = entryAmount(e, dateStr);
+      const price = item && item.hasUnitPrice ? effectivePrice(item, dateStr) : '';
+      rows.push([dateStr, item ? item.category : '', item ? item.name : '(deleted)', item ? item.vendor||'' : '', e.qty||'', price, amt.toFixed(2), e.note||'']);
+    });
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `expenses-${year}-${String(month+1).padStart(2,'0')}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ---------- WhatsApp share ---------- */
+function shareWhatsApp() {
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  const byCategory = {};
+  let grandTotal = 0;
+  Object.entries(monthEntries).forEach(([day, list]) => {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    list.forEach(e => {
+      const item = items.find(i => i.id === e.itemId);
+      const cat = item ? item.category : 'Unknown';
+      const amt = entryAmount(e, dateStr);
+      byCategory[cat] = (byCategory[cat] || 0) + amt;
+      grandTotal += amt;
+    });
+  });
+  let lines = [`📦 Expense Summary — ${monthNames[month]} ${year}`];
+  Object.entries(byCategory).forEach(([cat, amt]) => lines.push(`${cat}: ₹${amt.toFixed(2)}`));
+  lines.push(`Total: ₹${grandTotal.toFixed(2)}`);
+  const text = lines.join('\n');
+  if (navigator.share) navigator.share({ text }).catch(() => {});
+  else navigator.clipboard.writeText(text).then(() => alert('Summary copied — paste it into WhatsApp.')).catch(() => alert(text));
+}
+
+/* ---------- JSON export/import (manual backup and device-to-device transfer) ---------- */
+function exportData() {
+  const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
+  const payload = { year, month, monthName: monthNames[month], categories, items, monthEntries };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `expenses-${year}-${String(month+1).padStart(2,'0')}.json`; a.click();
+  URL.revokeObjectURL(url);
+}
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (typeof data.year === 'number') yearInput.value = data.year;
+      if (typeof data.month === 'number') monthSelect.value = data.month;
+      if (Array.isArray(data.categories)) { categories = data.categories; }
+      if (Array.isArray(data.items)) { items = data.items; }
+      saveConfig();
+      if (data.monthEntries) { monthEntries = data.monthEntries; saveMonthData(); }
+      loadMonth();
+    } catch (err) { alert('Could not read that file.'); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+/* ---------- Boot ---------- */
+loadLocalConfig();
+renderCategoryPills(); renderItemsList(); populateItemDropdowns();
+toggleNewItemPrice();
+loadMonth();
+if (items.length === 0) openItemsModal();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(e => console.error('SW registration failed', e));
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "Household Expense Tracker (Cloud Sync)",
+  "short_name": "Expenses Cloud",
+  "start_url": "./index-cloud.html",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#f97316",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
