@@ -137,6 +137,10 @@
   .guide-body ul { margin: 4px 0; padding-left: 18px; }
   .recur-badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; background: #fef3c7; color: #92400e; white-space: nowrap; font-weight: 600; }
 
+
+  .ocr-raw-text { width: 100%; font-size: 11px; color: #888; border: 1px solid #eee; border-radius: 6px; padding: 6px; font-family: monospace; resize: vertical; }
+  .scan-note { font-size: 11.5px; color: #999; margin: -4px 0 10px; line-height: 1.5; }
+
   @media (max-width: 480px) {
     .day-chip .dname, .day-chip .damt { display: none; }
   }
@@ -155,6 +159,8 @@
       <button id="dayViewBtn" onclick="setView('day')">Day</button>
     </div>
     <button class="secondary" onclick="openItemsModal()">🏷️ Items</button>
+    <button class="secondary" onclick="document.getElementById('billImageInput').click()">📷 Scan Bill</button>
+    <input type="file" id="billImageInput" accept="image/*" capture="environment" style="display:none" onchange="handleBillImage(event)">
     <button class="secondary" onclick="openWorkspaceModal()">Workspace</button>
     <button class="secondary" onclick="exportCSV()">Export CSV</button>
     <button class="secondary" onclick="shareWhatsApp()">Share</button>
@@ -252,6 +258,10 @@
       <input type="number" id="entryAmount" placeholder="Amount ₹" min="0">
     </div>
     <input type="text" id="entryNote" placeholder="Note (optional)">
+    <div id="ocrRawTextWrap" style="display:none;">
+      <div class="section-label" style="margin-top:0;">Scanned text (for reference — the amount above is a guess, please check it)</div>
+      <textarea id="ocrRawText" class="ocr-raw-text" readonly rows="4"></textarea>
+    </div>
     <label class="chk"><input type="checkbox" id="entryRecurring"> 🔁 Repeat this every month</label>
     <button class="primary" onclick="saveEntry()">Save entry</button>
     <button class="primary gray" style="margin-top:8px;" onclick="closeAddEntry()">Cancel</button>
@@ -281,6 +291,14 @@
     </ul>
     <h3>Sharing with others</h3><p>Tap <b>Workspace</b> and set a shared code — everyone who enters the exact same code sees and edits the same data, live.</p>
     <button class="primary gray" style="margin-top:14px;" onclick="closeGuide()">Close</button>
+  </div>
+</div>
+
+
+<div class="modal-overlay hidden" id="scanningModal">
+  <div class="modal" style="text-align:center;">
+    <h2>Reading bill…</h2>
+    <p>This can take a few seconds — longer the first time, while the OCR model downloads.</p>
   </div>
 </div>
 
@@ -599,6 +617,70 @@ function deleteItem(id) {
 }
 
 
+
+/* ---------- Bill scanning (Paddle OCR, runs entirely in the browser) ---------- */
+/* Needs an internet connection to fetch the OCR model — the only network-dependent
+   feature in this app besides sharing/export. Everything else stays fully offline. */
+let ocrEngine = null;
+
+async function handleBillImage(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+
+  document.getElementById('scanningModal').classList.remove('hidden');
+  try {
+    if (!ocrEngine) {
+      const { PaddleOCR } = await import('https://cdn.jsdelivr.net/npm/@paddleocr/paddleocr-js/+esm');
+      ocrEngine = await PaddleOCR.create({ lang: 'en', ocrVersion: 'PP-OCRv5', ortOptions: { backend: 'auto' } });
+    }
+    const [result] = await ocrEngine.predict(file);
+    const rawText = (result.items || []).map(i => i.text).join('\n');
+    if (!rawText.trim()) throw new Error('No text detected in that photo — try a clearer, well-lit shot.');
+    const parsed = parseBillText(rawText);
+    document.getElementById('scanningModal').classList.add('hidden');
+    openScannedEntry(parsed);
+  } catch (e) {
+    console.error('Bill scan failed', e);
+    document.getElementById('scanningModal').classList.add('hidden');
+    alert('Could not read that bill: ' + e.message + '\n\nMake sure you have an internet connection and try a clear, well-lit photo.');
+  }
+}
+
+function parseBillText(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const amountPattern = /[0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?/;
+  const totalKeywords = /total|amount due|grand total|net amount|balance due|payable/i;
+  let totalAmount = null;
+
+  for (const line of lines) {
+    if (totalKeywords.test(line)) {
+      const m = line.match(amountPattern);
+      if (m) { totalAmount = parseFloat(m[0].replace(/,/g, '')); break; }
+    }
+  }
+  if (totalAmount === null) {
+    // No line matched a "total"-style keyword — fall back to the largest number
+    // on the bill, since the grand total is usually the biggest figure present.
+    const allNums = [...text.matchAll(/[0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?/g)]
+      .map(m => parseFloat(m[0].replace(/,/g, '')));
+    if (allNums.length) totalAmount = Math.max(...allNums);
+  }
+
+  return { totalAmount, vendorGuess: lines[0] || '', rawText: text };
+}
+
+function openScannedEntry(parsed) {
+  openAddEntry(); // fresh "add" mode, not edit
+  if (parsed.totalAmount !== null) {
+    document.getElementById('entryAmount').value = parsed.totalAmount;
+    updateEntryPreview();
+  }
+  document.getElementById('entryNote').value = parsed.vendorGuess.slice(0, 60);
+  document.getElementById('ocrRawText').value = parsed.rawText;
+  document.getElementById('ocrRawTextWrap').style.display = 'block';
+}
+
 /* ---------- Recurring monthly entries ---------- */
 function upsertRecurringTemplate(existingTemplateId, itemId, day, qty, amount, note) {
   let t = existingTemplateId ? recurringTemplates.find(x => x.id === existingTemplateId) : null;
@@ -765,6 +847,7 @@ function nextWeekStrip() {
 /* ---------- Add entry modal ---------- */
 function openAddEntry(editIdx) {
   if (items.length === 0) { alert('Add at least one item first (🏷️ Items button).'); openItemsModal(); return; }
+  document.getElementById('ocrRawTextWrap').style.display = 'none';
   editingEntryIndex = (editIdx === undefined) ? null : editIdx;
   const year = parseInt(yearInput.value), month = parseInt(monthSelect.value);
   document.getElementById('addEntryDayLabel').textContent = `${monthNames[month]} ${selectedDay}, ${year}`;
