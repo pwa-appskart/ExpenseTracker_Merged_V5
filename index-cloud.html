@@ -667,16 +667,40 @@ function parseBillText(text) {
     if (allNums.length) totalAmount = Math.max(...allNums);
   }
 
-  return { totalAmount, vendorGuess: lines[0] || '', rawText: text };
+  // Description guess: the header of a receipt usually carries the store/vendor
+  // name and any useful context. Take the first few lines that are actually text
+  // (skip lines that are purely numbers/currency, which are almost never useful
+  // as a description), rather than blindly grabbing line 1 which can be blank,
+  // a stray OCR artifact, or a barcode number depending on the receipt layout.
+  const textyLines = lines.filter(l => !/^[0-9.,:\-\/\s₹$]+$/.test(l));
+  const descriptionGuess = textyLines.slice(0, 3).join(' · ').slice(0, 120);
+
+  return { totalAmount, descriptionGuess, rawText: text };
 }
 
 function openScannedEntry(parsed) {
   openAddEntry(); // fresh "add" mode, not edit
+
+  // Bill scans represent a single flat total, not a per-unit quantity — so make
+  // sure a flat-amount item is selected first, otherwise the Amount field stays
+  // hidden (replaced by Quantity) and the guessed total has nowhere to go.
+  const flatItem = items.find(i => !i.hasUnitPrice);
+  if (!flatItem) {
+    alert('Add a flat-amount item first (e.g. "Bill" or "Receipt", with "Has a per-unit price" left unchecked) so scanned bills have somewhere to go.');
+    closeAddEntry();
+    openItemsModal();
+    return;
+  }
+  document.getElementById('entryCategory').value = flatItem.category;
+  onEntryCategoryChange();
+  document.getElementById('entryItem').value = flatItem.id;
+  onEntryItemChange();
+
   if (parsed.totalAmount !== null) {
     document.getElementById('entryAmount').value = parsed.totalAmount;
     updateEntryPreview();
   }
-  document.getElementById('entryNote').value = parsed.vendorGuess.slice(0, 60);
+  document.getElementById('entryNote').value = parsed.descriptionGuess;
   document.getElementById('ocrRawText').value = parsed.rawText;
   document.getElementById('ocrRawTextWrap').style.display = 'block';
 }
