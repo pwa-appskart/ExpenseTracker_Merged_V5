@@ -145,7 +145,7 @@
 <body>
 <div class="container">
   <h1>Household Expense Tracker</h1>
-  <div class="subtitle">Log deliveries and expenses by category. Totals update automatically. Works fully offline.</div>
+  <div class="subtitle">Log deliveries and expenses by category. Totals update automatically. Bill scanning uses the local OCR server.</div>
 
   <div class="controls">
     <div><label for="monthSelect">Month</label><select id="monthSelect"></select></div>
@@ -281,7 +281,7 @@
 <div class="modal-overlay hidden" id="scanningModal">
   <div class="modal" style="text-align:center;">
     <h2>Reading bill…</h2>
-    <p>This can take a few seconds — longer the first time, while the OCR model downloads.</p>
+    <p>This can take a few seconds while the local Python OCR model processes the image.</p>
   </div>
 </div>
 
@@ -461,10 +461,9 @@ function deleteItem(id) {
 
 
 
-/* ---------- Bill scanning (Paddle OCR, runs entirely in the browser) ---------- */
-/* Needs an internet connection to fetch the OCR model — the only network-dependent
-   feature in this app besides sharing/export. Everything else stays fully offline. */
-let ocrEngine = null;
+/* ---------- Bill scanning (local Python PPStructureV3 backend) ---------- */
+/* Start ocr/server.py on this laptop before using Scan Bill. */
+const OCR_BACKEND_URL = 'http://127.0.0.1:5000/ocr';
 
 async function handleBillImage(event) {
   const file = event.target.files[0];
@@ -473,20 +472,24 @@ async function handleBillImage(event) {
 
   document.getElementById('scanningModal').classList.remove('hidden');
   try {
-    if (!ocrEngine) {
-      const { PaddleOCR } = await import('https://cdn.jsdelivr.net/npm/@paddleocr/paddleocr-js/+esm');
-      ocrEngine = await PaddleOCR.create({ lang: 'en', ocrVersion: 'PP-OCRv5', ortOptions: { backend: 'auto' } });
-    }
-    const [result] = await ocrEngine.predict(file);
-    const rawText = (result.items || []).map(i => i.text).join('\n');
-    if (!rawText.trim()) throw new Error('No text detected in that photo — try a clearer, well-lit shot.');
-    const parsed = parseBillText(rawText);
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(OCR_BACKEND_URL, { method: 'POST', body: formData });
+    let result;
+    try { result = await response.json(); } catch (e) { result = {}; }
+    if (!response.ok) throw new Error(result.error || `Backend returned HTTP ${response.status}.`);
+    if (!result.rawText || !result.rawText.trim()) throw new Error('No text detected in that photo — try a clearer, well-lit shot.');
+    const parsed = {
+      totalAmount: result.totalAmount,
+      descriptionGuess: result.descriptionGuess || '',
+      rawText: result.rawText
+    };
     document.getElementById('scanningModal').classList.add('hidden');
     openScannedEntry(parsed);
   } catch (e) {
     console.error('Bill scan failed', e);
     document.getElementById('scanningModal').classList.add('hidden');
-    alert('Could not read that bill: ' + e.message + '\n\nMake sure you have an internet connection and try a clear, well-lit photo.');
+    alert('Could not read that bill: ' + e.message + '\n\nStart the local OCR server and try a clear, well-lit photo.');
   }
 }
 
