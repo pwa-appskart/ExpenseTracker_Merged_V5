@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expense-tracker-v6-local-ocr';
+const CACHE_NAME = 'expense-tracker-v7-local-ocr-theme';
 const ASSETS = [
   './index.html',
   './manifest.json',
