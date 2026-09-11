@@ -144,6 +144,35 @@
   @media (max-width: 480px) {
     .day-chip .dname, .day-chip .damt { display: none; }
   }
+
+  :root {
+    color-scheme: light;
+    --page-bg: #f4f5f7; --surface: #fff; --surface-muted: #f8f9fb;
+    --theme-text: #222; --theme-muted: #666; --theme-soft: #888;
+    --theme-border: #ccc; --theme-accent: #f97316; --theme-shadow: rgba(0,0,0,0.08);
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page-bg: #111827; --surface: #1f2937; --surface-muted: #273449;
+    --theme-text: #e5e7eb; --theme-muted: #cbd5e1; --theme-soft: #94a3b8;
+    --theme-border: #475569; --theme-accent: #fb923c; --theme-shadow: rgba(0,0,0,0.28);
+  }
+  body { background: var(--page-bg); color: var(--theme-text); }
+  .controls, .day-cell, .day-chip, .day-total-bar, .entry-row, .summary-card,
+  .breakdown-table, .modal, .add-entry-btn { background: var(--surface); }
+  .controls, .summary-card, .breakdown-table, .day-total-bar { box-shadow: 0 1px 3px var(--theme-shadow); }
+  .subtitle, .controls label, .status-bar, .day-header, .day-count, .day-chip .dname,
+  .day-week-nav .week-label, .day-total-bar .dt-label, .entry-detail, .summary-label,
+  .modal p, .modal label.chk, .modal .section-label { color: var(--theme-muted); }
+  .day-num, .day-chip .dnum, .entry-name, .summary-value, .day-week-nav button { color: var(--theme-text); }
+  .controls select, .controls input, .modal input, .modal select, .day-week-nav button {
+    background: var(--surface); color: var(--theme-text); border-color: var(--theme-border);
+  }
+  .view-toggle { border-color: var(--theme-border); }
+  .view-toggle button { background: var(--surface); color: var(--theme-muted); }
+  .day-chip.active { background: var(--surface-muted); border-color: var(--theme-accent); }
+  .day-total-bar .dt-value, .summary-value.price, .day-amount, .day-chip .damt,
+  .add-entry-btn { color: var(--theme-accent); }
 </style>
 </head>
 <body>
@@ -168,6 +197,7 @@
     <button class="secondary" onclick="document.getElementById('importFile').click()">Import JSON</button>
     <button class="secondary" onclick="clearMonth()">Clear month</button>
     <button class="secondary" onclick="openGuide()">❓ Guide</button>
+    <button class="secondary" id="themeToggle" onclick="cycleTheme()" aria-label="Change color theme">Theme: Auto</button>
     <button class="green" onclick="openFeedback()">💬 Feedback</button>
     <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(event)">
   </div>
@@ -314,6 +344,28 @@ const firebaseConfig = {
   measurementId: "G-FVSR26QF73"
 };
 /* ================================= */
+
+const themeToggle = document.getElementById('themeToggle');
+const themeMeta = document.querySelector('meta[name="theme-color"]');
+const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+function getThemePreference() { return localStorage.getItem('themePreference') || 'auto'; }
+function applyTheme(preference) {
+  const resolvedTheme = preference === 'auto' ? (systemTheme.matches ? 'dark' : 'light') : preference;
+  document.documentElement.dataset.theme = resolvedTheme;
+  themeToggle.textContent = `Theme: ${preference[0].toUpperCase()}${preference.slice(1)}`;
+  if (themeMeta) themeMeta.content = resolvedTheme === 'dark' ? '#111827' : '#f97316';
+}
+function cycleTheme() {
+  const preferences = ['auto', 'light', 'dark'];
+  const current = getThemePreference();
+  const next = preferences[(preferences.indexOf(current) + 1) % preferences.length];
+  localStorage.setItem('themePreference', next);
+  applyTheme(next);
+}
+applyTheme(getThemePreference());
+const handleSystemThemeChange = () => { if (getThemePreference() === 'auto') applyTheme('auto'); };
+if (systemTheme.addEventListener) systemTheme.addEventListener('change', handleSystemThemeChange);
+else if (systemTheme.addListener) systemTheme.addListener(handleSystemThemeChange);
 
 const monthSelect = document.getElementById('monthSelect');
 const yearInput = document.getElementById('yearInput');
