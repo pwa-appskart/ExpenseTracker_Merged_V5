@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expense-tracker-v4-offline';
+const CACHE_NAME = 'expense-tracker-v5-theme';
 const ASSETS = [
   './index.html',
   './manifest.json',
