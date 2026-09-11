@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expense-tracker-cloud-v2-theme';
+const CACHE_NAME = 'expense-tracker-cloud-v3-theme';
 const ASSETS = [
   './index-cloud.html',
   './manifest-cloud.json',
