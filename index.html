@@ -36,6 +36,8 @@
   .controls button.secondary { background: #64748b; }
   .controls button.secondary:hover { background: #475569; }
   .controls button.green { background: #16a34a; }
+  .theme-toggle { position: fixed; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); z-index: 110;
+    width: 40px; height: 40px; padding: 0; border: none; border-radius: 50%; font-size: 20px; line-height: 1; }
   .view-toggle { display: flex; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; }
   .view-toggle button { background: #fff; color: #444; border-radius: 0; padding: 6px 12px; }
   .view-toggle button.active { background: #f97316; color: #fff; }
@@ -192,8 +194,7 @@
     <button class="secondary" onclick="document.getElementById('importFile').click()">Import JSON</button>
     <button class="secondary" onclick="clearMonth()">Clear month</button>
     <button class="secondary" onclick="openGuide()">❓ Guide</button>
-    <button class="secondary" id="themeToggle" onclick="cycleTheme()" aria-label="Change color theme">Theme: Auto</button>
-    <button class="green" onclick="openFeedback()">💬 Feedback</button>
+    <button class="secondary theme-toggle" id="themeToggle" onclick="cycleTheme()" aria-label="Switch to dark mode" title="Switch to dark mode">☾</button>
     <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(event)">
   </div>
   <div class="status-bar">💾 <span id="statusText">Saved on this device</span></div>
@@ -294,15 +295,19 @@
     <p>Switch to <b>Day</b> view, pick a date from the strip, and tap <b>+ Add entry</b>. Choose category → item → enter quantity or amount.</p>
     <h3>3. Repeating expenses</h3>
     <p>Check <b>🔁 Repeat this every month</b> when adding an entry — it will auto-appear on the same date every month afterward, so you never have to re-add it. Manage or remove repeating entries from the Items screen.</p>
-    <h3>4. Review your month</h3>
+    <h3>4. Scan a bill</h3>
+    <p>Start the local Python OCR server first, then tap <b>📷 Scan Bill</b> and choose an image. The browser uploads it to <b>PPStructureV3</b> at <b>http://127.0.0.1:5000/ocr</b>. Check the suggested amount, description, and scanned text before saving. Scanning requires the server to be running on this laptop.</p>
+    <h3>5. Review your month</h3>
     <p>Switch to <b>Month</b> view for a calendar overview — each day shows its total and entry count. The bottom of the page shows your total spend and a category breakdown.</p>
-    <h3>5. Export &amp; share</h3>
+    <h3>6. Change the appearance</h3>
+    <p>Use the Sun/Moon button in the top-left corner to switch between Light and Dark modes.</p>
+    <h3>7. Export &amp; share</h3>
     <ul>
       <li><b>Export CSV</b> — opens cleanly in Excel/Sheets</li>
       <li><b>Share</b> — sends a quick summary via WhatsApp or your phone's share sheet</li>
       <li><b>Export/Import JSON</b> — full backup, or move data between devices</li>
     </ul>
-    <h3>About this version</h3><p>This is the offline version — everything stays on this device only. Use <b>Export JSON</b> and <b>Import JSON</b> to move data to another device.</p>
+    <h3>About this version</h3><p>Entries, categories, and items are stored locally on this device. The OCR scan is the exception: it sends the selected image to the Python server running on this laptop. Use <b>Export JSON</b> for a backup or to move data to another device.</p>
     <button class="primary gray" style="margin-top:14px;" onclick="closeGuide()">Close</button>
   </div>
 </div>
@@ -318,25 +323,22 @@
 <script>
 const themeToggle = document.getElementById('themeToggle');
 const themeMeta = document.querySelector('meta[name="theme-color"]');
-const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
-function getThemePreference() { return localStorage.getItem('themePreference') || 'auto'; }
+function getThemePreference() { return localStorage.getItem('themePreference') === 'dark' ? 'dark' : 'light'; }
 function applyTheme(preference) {
-  const resolvedTheme = preference === 'auto' ? (systemTheme.matches ? 'dark' : 'light') : preference;
-  document.documentElement.dataset.theme = resolvedTheme;
-  themeToggle.textContent = `Theme: ${preference[0].toUpperCase()}${preference.slice(1)}`;
-  if (themeMeta) themeMeta.content = resolvedTheme === 'dark' ? '#111827' : '#f97316';
+  document.documentElement.dataset.theme = preference;
+  const nextMode = preference === 'dark' ? 'light' : 'dark';
+  themeToggle.textContent = preference === 'dark' ? '☀' : '☾';
+  themeToggle.title = `Switch to ${nextMode} mode`;
+  themeToggle.setAttribute('aria-label', `Switch to ${nextMode} mode`);
+  if (themeMeta) themeMeta.content = preference === 'dark' ? '#111827' : '#f97316';
 }
 function cycleTheme() {
-  const preferences = ['auto', 'light', 'dark'];
   const current = getThemePreference();
-  const next = preferences[(preferences.indexOf(current) + 1) % preferences.length];
+  const next = current === 'dark' ? 'light' : 'dark';
   localStorage.setItem('themePreference', next);
   applyTheme(next);
 }
 applyTheme(getThemePreference());
-const handleSystemThemeChange = () => { if (getThemePreference() === 'auto') applyTheme('auto'); };
-if (systemTheme.addEventListener) systemTheme.addEventListener('change', handleSystemThemeChange);
-else if (systemTheme.addListener) systemTheme.addListener(handleSystemThemeChange);
 
 const monthSelect = document.getElementById('monthSelect');
 const yearInput = document.getElementById('yearInput');
@@ -375,8 +377,8 @@ document.addEventListener('keydown', (e) => {
 function openGuide() { document.getElementById('guideModal').classList.remove('hidden'); }
 function closeGuide() { document.getElementById('guideModal').classList.add('hidden'); }
 
-const FEEDBACK_FORM_URL = "https://forms.gle/YOUR_FORM_ID";
-function openFeedback() { window.open(FEEDBACK_FORM_URL, '_blank'); }
+//const FEEDBACK_FORM_URL = "https://forms.gle/YOUR_FORM_ID";
+//function openFeedback() { window.open(FEEDBACK_FORM_URL, '_blank'); }
 
 /* ---------- Local storage (sole persistence — everything stays on this device) ---------- */
 function loadLocalConfig() {
