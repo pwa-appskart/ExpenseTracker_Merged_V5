@@ -20,7 +20,7 @@
     padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
     color: #222;
   }
-  .container { max-width: 720px; margin: 0 auto; }
+  .container { max-width: 720px; margin: 0 auto; position: relative; }
   h1 { font-size: 21px; font-weight: 600; margin-bottom: 4px; }
   .subtitle { color: #666; margin-bottom: 18px; font-size: 13px; }
 
@@ -36,7 +36,7 @@
   .controls button.secondary { background: #64748b; }
   .controls button.secondary:hover { background: #475569; }
   .controls button.green { background: #16a34a; }
-  .theme-toggle { position: fixed; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); z-index: 110;
+  .theme-toggle { position: absolute; top: 0; right: 0; z-index: 110;
     width: 40px; height: 40px; padding: 0; border: none; border-radius: 50%; font-size: 20px; line-height: 1; }
   .view-toggle { display: flex; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; }
   .view-toggle button { background: #fff; color: #444; border-radius: 0; padding: 6px 12px; }
